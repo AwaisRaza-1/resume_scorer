@@ -2,8 +2,32 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle, Upload, Star } from "lucide-react";
+import { useRef, useState } from "react";
+import Modal from "@/components/Modal";
+import Loader from "@/components/Loader";
+import { useRouter } from "next/navigation";
 
 export default function Hero() {
+    const fileInputRef = useRef(null);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+
+    const handleSelect = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setModalOpen(true);
+        setLoading(true);
+        setTimeout(() => {
+            setLoading(false);
+        }, 3000);
+        e.target.value = "";
+    };
+
     return (
         <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
             {/* Background blobs */}
@@ -30,7 +54,7 @@ export default function Hero() {
                             </p>
 
                             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-                                <button className="w-full sm:w-auto bg-primary hover:bg-primary-dark text-white px-8 py-4 rounded-full font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-xl shadow-primary/25 group">
+                                <button onClick={handleSelect} className="w-full sm:w-auto bg-primary hover:bg-primary-dark text-white px-8 py-4 rounded-full font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-xl shadow-primary/25 group">
                                     Upload Resume <Upload className="w-5 h-5 group-hover:translate-y-[-2px] transition-transform" />
                                 </button>
                                 <button className="w-full sm:w-auto bg-white hover:bg-slate-50 text-foreground border border-border px-8 py-4 rounded-full font-bold text-lg flex items-center justify-center gap-2 transition-all">
@@ -134,6 +158,45 @@ export default function Hero() {
                     </div>
                 </div>
             </div>
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,application/pdf"
+                className="hidden"
+                onChange={handleUpload}
+            />
+            <Modal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                title="Analyzing Your Resume"
+                size="md"
+                actions={
+                    loading
+                        ? [{ label: "Close", onClick: () => setModalOpen(false) }]
+                        : [
+                              { label: "Close", onClick: () => setModalOpen(false) },
+                              { label: "View Analysis", onClick: () => router.push("/analysis"), variant: "primary" },
+                          ]
+                }
+            >
+                <div className="flex items-center gap-4">
+                    <Loader visible={loading} text="Calculating ATS score" variant="inline" />
+                </div>
+                <div className="mt-6 space-y-3">
+                    {["Parsing file", "Extracting keywords", "Computing ATS score", "Preparing feedback"].map((item, i) => (
+                        <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2, delay: i * 0.1 }}
+                            className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50"
+                        >
+                            <span className="text-sm font-medium">{item}</span>
+                            <span className="text-xs text-foreground/60">{loading ? "In progress" : "Ready"}</span>
+                        </motion.div>
+                    ))}
+                </div>
+            </Modal>
         </section>
     );
 }
