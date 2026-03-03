@@ -179,7 +179,7 @@ export default function Hero() {
                           ]
                 }
             >
-                <div className="flex items-center gap-4">
+                <div className="flex justify-center items-center gap-4">
                     <Loader visible={loading} text="Calculating ATS score" variant="inline" />
                 </div>
                 <div className="mt-6 space-y-3">
@@ -189,10 +189,26 @@ export default function Hero() {
                             initial={{ opacity: 0, y: 6 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.2, delay: i * 0.1 }}
-                            className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50"
+                            className={`flex items-center justify-between p-3 rounded-xl border ${loading ? 'border-slate-100 bg-slate-50' : 'border-secondary/30 bg-secondary/5'}`}
                         >
                             <span className="text-sm font-medium">{item}</span>
-                            <span className="text-xs text-foreground/60">{loading ? "In progress" : "Ready"}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-foreground/60">{loading ? "In progress" : "Ready"}</span>
+                                {!loading && (
+                                    <motion.div
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        transition={{ 
+                                            type: "spring", 
+                                            stiffness: 300, 
+                                            damping: 20,
+                                            delay: i * 0.1 
+                                        }}
+                                    >
+                                        <CheckCircle className="w-4 h-4 text-secondary" />
+                                    </motion.div>
+                                )}
+                            </div>
                         </motion.div>
                     ))}
                 </div>
