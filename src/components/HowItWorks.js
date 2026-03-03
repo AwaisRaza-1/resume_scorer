@@ -31,7 +31,7 @@ export default function HowItWorks() {
                 <div className="text-center max-w-3xl mx-auto mb-20">
                     <h2 className="text-4xl font-bold mb-4">Three Simple Steps</h2>
                     <p className="text-foreground/60 text-lg">
-                        Optimization shouldn't be complicated. We've streamlined the process to help you get results faster.
+                        Optimization shouldn&apos;t be complicated. We&apos;ve streamlined the process to help you get results faster.
                     </p>
                 </div>
 
