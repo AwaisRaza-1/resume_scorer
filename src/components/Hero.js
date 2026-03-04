@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle, Upload, Star } from "lucide-react";
+import { ArrowRight, CheckCircle, Upload, Star, AlertCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import Loader from "@/components/Loader";
@@ -11,21 +11,66 @@ export default function Hero() {
     const fileInputRef = useRef(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [file, setFile] = useState(null);
+    const [targetRole, setTargetRole] = useState("");
+    const [jobDescription, setJobDescription] = useState("");
+    const [error, setError] = useState("");
     const router = useRouter();
 
     const handleSelect = () => {
         fileInputRef.current?.click();
     };
 
-    const handleUpload = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const handleFileChange = (e) => {
+        const selectedFile = e.target.files?.[0];
+        if (!selectedFile) return;
+        setFile(selectedFile);
         setModalOpen(true);
-        setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
-        }, 3000);
+        setError("");
         e.target.value = "";
+    };
+
+    const handleAnalyze = async () => {
+        if (!file) {
+            setError("Please upload a resume first.");
+            return;
+        }
+
+        setLoading(true);
+        setError("");
+
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            if (targetRole) formData.append("target_role", targetRole);
+            if (jobDescription) formData.append("job_description", jobDescription);
+
+            const response = await fetch("http://localhost:8000/api/analyze", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail?.message || errorData.detail || "Failed to analyze resume.");
+            }
+
+            const data = await response.json();
+
+            // Store result for the analysis page
+            sessionStorage.setItem("analysisResult", JSON.stringify(data));
+
+            // Brief delay to show complete states
+            setTimeout(() => {
+                setLoading(false);
+                router.push("/analysis");
+            }, 1000);
+
+        } catch (err) {
+            console.error("Analysis error:", err);
+            setError(err.message || "An error occurred during analysis. Please try again.");
+            setLoading(false);
+        }
     };
 
     return (
@@ -163,55 +208,90 @@ export default function Hero() {
                 type="file"
                 accept=".pdf,.doc,.docx,application/pdf"
                 className="hidden"
-                onChange={handleUpload}
+                onChange={handleFileChange}
             />
             <Modal
                 open={modalOpen}
-                onClose={() => setModalOpen(false)}
-                title="Analyzing Your Resume"
+                onClose={() => !loading && setModalOpen(false)}
+                title={loading ? "Analyzing Your Resume" : "Complete Your Analysis"}
                 size="md"
                 actions={
                     loading
-                        ? [{ label: "Close", onClick: () => setModalOpen(false) }]
+                        ? []
                         : [
-                              { label: "Close", onClick: () => setModalOpen(false) },
-                              { label: "View Analysis", onClick: () => router.push("/analysis"), variant: "primary" },
-                          ]
+                            { label: "Cancel", onClick: () => setModalOpen(false) },
+                            { label: "Start Analysis", onClick: handleAnalyze, variant: "primary" },
+                        ]
                 }
             >
-                <div className="flex justify-center items-center gap-4">
-                    <Loader visible={loading} text="Calculating ATS score" variant="inline" />
-                </div>
-                <div className="mt-6 space-y-3">
-                    {["Parsing file", "Extracting keywords", "Computing ATS score", "Preparing feedback"].map((item, i) => (
-                        <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2, delay: i * 0.1 }}
-                            className={`flex items-center justify-between p-3 rounded-xl border ${loading ? 'border-slate-100 bg-slate-50' : 'border-secondary/30 bg-secondary/5'}`}
-                        >
-                            <span className="text-sm font-medium">{item}</span>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-foreground/60">{loading ? "In progress" : "Ready"}</span>
-                                {!loading && (
-                                    <motion.div
-                                        initial={{ scale: 0, opacity: 0 }}
-                                        animate={{ scale: 1, opacity: 1 }}
-                                        transition={{ 
-                                            type: "spring", 
-                                            stiffness: 300, 
-                                            damping: 20,
-                                            delay: i * 0.1 
-                                        }}
-                                    >
-                                        <CheckCircle className="w-4 h-4 text-secondary" />
-                                    </motion.div>
-                                )}
+                {loading ? (
+                    <div className="py-4">
+                        <div className="flex justify-center items-center gap-4 mb-8">
+                            <Loader visible={loading} text="Analyzing with AI" variant="inline" />
+                        </div>
+                        <div className="space-y-3">
+                            {["Parsing Documents", "Matching Keywords", "Calculating ATS Score", "Generating Feedback"].map((item, i) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: i * 0.4 }}
+                                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"
+                                >
+                                    <span className="text-sm font-medium">{item}</span>
+                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {error && (
+                            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4" /> {error}
                             </div>
-                        </motion.div>
-                    ))}
-                </div>
+                        )}
+
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary font-bold">
+                                PDF
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold truncate">{file?.name || "No file selected"}</p>
+                                <p className="text-[10px] text-foreground/40 uppercase font-bold tracking-wider">{(file?.size / 1024).toFixed(1)} KB • Ready to upload</p>
+                            </div>
+                            <button onClick={handleSelect} className="text-xs font-bold text-primary hover:underline">Change</button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-foreground/40 tracking-widest ml-1">Target Role (Recommended)</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Senior Frontend Engineer"
+                                    value={targetRole}
+                                    onChange={(e) => setTargetRole(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none transition-all text-sm font-medium"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-foreground/40 tracking-widest ml-1">Job Description (Optional)</label>
+                                <textarea
+                                    rows={5}
+                                    placeholder="Paste the full job description for a more accurate ATS score..."
+                                    value={jobDescription}
+                                    onChange={(e) => setJobDescription(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none transition-all text-sm font-medium resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        <p className="text-[10px] text-center text-foreground/40 font-medium px-6">
+                            By clicking Start Analysis, your resume will be processed by our AI models to provide feedback and scoring.
+                        </p>
+                    </div>
+                )}
             </Modal>
         </section>
     );
