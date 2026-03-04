@@ -15,7 +15,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://resumescorer-self.vercel.app", "http://localhost:3000"],  # remove trailing slash
+    allow_origins=["https://airesumescorer.vercel.app", "http://localhost:3000"],  # remove trailing slash
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
