@@ -4,9 +4,12 @@ import { motion } from "framer-motion";
 import { CheckCircle, Tag, ListChecks, ArrowLeft, Download, Share2, AlertCircle, Sparkles, Layout, Type, Move } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function AnalysisPage() {
   const [currentPayload, setCurrentPayload] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     // Try to get result from session storage
@@ -20,73 +23,186 @@ export default function AnalysisPage() {
     }
   }, []);
 
-  // Fallback to demo data if nothing is in session storage
-  const demoPayload = {
-    score: 85,
-    details: {
-      keywords: {
-        score: 80,
-        found: [
-          "React.js",
-          "Node.js",
-          "JavaScript",
-          "Frontend Development",
-          "Backend Development",
-          "API Integration"
-        ],
-        missing: [
-          "HTML",
-          "CSS",
-          "Java",
-          "C++"
-        ],
-        jd_match_percentage: 70
-      },
-      sections: {
-        score: 90,
-        present: [
-          "EDUCATION",
-          "TECHNICAL SKILLS",
-          "WORK EXPERIENCE",
-          "SOFT SKILLS",
-          "PROJECTS"
-        ],
-        missing: [
-          "CERTIFICATIONS",
-          "ACHIEVEMENTS"
-        ],
-        notes: "Missing sections are acceptable for a junior role."
-      },
-      content_quality: {
-        score: 85,
-        strengths: [
-          "Clear technical skills section",
-          "Relevant work experience",
-          "Impressive projects"
-        ],
-        improvements: [
-          "Quantify achievements in work experience",
-          "Expand on soft skills",
-          "Use action verbs consistently"
-        ]
-      },
-      recommendations: [
-        "Add relevant certifications or courses to enhance credibility",
-        "Include specific numbers and metrics to demonstrate impact in work experience",
-        "Emphasize transferable skills and accomplishments in the profile section",
-        "Consider adding a separate section for achievements or awards"
-      ]
-    },
-    inferred_context: "Based on provided context",
-    metadata: {
-      remaining_requests: 6,
-      filename: "MAwaisResume.pdf",
-      timestamp: "2026-03-04T14:32:32.771219",
-      ip: "127.0.0.1"
+  const data = currentPayload;
+
+  const handleShare = async () => {
+    const shareData = {
+      title: "My Resume Analysis Report",
+      text: `I just got a score of ${data?.score}% on my resume! Check out the details.`,
+      url: window.location.href,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.error("Error sharing:", err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error("Error copying to clipboard:", err);
+      }
     }
   };
 
-  const data = currentPayload;
+  const handleExport = () => {
+    if (!data) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let yPos = 25;
+
+    // --- Header & Brand ---
+    doc.setFillColor(15, 23, 42); // Navy color from your theme
+    doc.rect(0, 0, pageWidth, 45, "F");
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.text("ScoreResume Analysis", margin, 20);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("AI-Powered Resume Optimization Report", margin, 28);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 34);
+
+    // --- Hero Section: Score ---
+    yPos = 60;
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Overall Resume Score", margin, yPos);
+
+    yPos += 10;
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, "FD");
+
+    doc.setTextColor(79, 70, 229); // Primary color
+    doc.setFontSize(28);
+    doc.text(`${data.score}%`, margin + 5, yPos + 17);
+
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Filename: ${data.metadata?.filename || "Resume.pdf"}`, margin + 55, yPos + 10);
+    doc.text(`JD Match: ${data.details.keywords.jd_match_percentage}%`, margin + 55, yPos + 17);
+
+    // --- Categorical Scores ---
+    yPos += 40;
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Detailed Breakdown", margin, yPos);
+
+    const tableData = [
+      ["Keyword Alignment", `${data.details.keywords.score}%`],
+      ["Content Quality", `${data.details.content_quality.score}%`],
+      ["Section Completion", `${data.details.sections.score}%`]
+    ];
+
+    autoTable(doc, {
+      startY: yPos + 5,
+      head: [["Category", "Score"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [79, 70, 229] },
+      margin: { left: margin, right: margin }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    // --- Keywords ---
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Skill & Keyword Matching", margin, yPos);
+
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 163, 74); // Green
+    doc.text("FOUND SKILLS:", margin, yPos);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(51, 65, 85);
+    const foundText = data.details.keywords.found.join(", ");
+    const foundLines = doc.splitTextToSize(foundText, pageWidth - (margin * 2));
+    doc.text(foundLines, margin, yPos + 6);
+    yPos += 10 + (foundLines.length * 5);
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(220, 38, 38); // Red
+    doc.text("MISSING SKILLS:", margin, yPos);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(51, 65, 85);
+    const missingText = data.details.keywords.missing.join(", ");
+    const missingLines = doc.splitTextToSize(missingText, pageWidth - (margin * 2));
+    doc.text(missingLines, margin, yPos + 6);
+    yPos += 10 + (missingLines.length * 5);
+
+    // --- Strengths & Improvements ---
+    if (yPos > 240) { doc.addPage(); yPos = 20; }
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Content Impact", margin, yPos);
+
+    yPos += 10;
+    autoTable(doc, {
+      startY: yPos,
+      head: [["High Impact Strengths", "Growth Opportunities"]],
+      body: [
+        [
+          data.details.content_quality.strengths.join("\n\n"),
+          data.details.content_quality.improvements.join("\n\n")
+        ]
+      ],
+      theme: "grid",
+      headStyles: { fillColor: [15, 23, 42] },
+      styles: { fontSize: 9, cellPadding: 5 },
+      margin: { left: margin, right: margin }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    // --- Expert Recommendations ---
+    if (yPos > 240) { doc.addPage(); yPos = 20; }
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Expert Recommendations", margin, yPos);
+
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(51, 65, 85);
+    data.details.recommendations.forEach((rec, i) => {
+      const line = `• ${rec}`;
+      const wrapped = doc.splitTextToSize(line, pageWidth - (margin * 2));
+      doc.text(wrapped, margin, yPos);
+      yPos += (wrapped.length * 5) + 2;
+    });
+
+    // --- Footer ---
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, 285, { align: "center" });
+      doc.text("Powered by ScoreResume AI", pageWidth - margin, 285, { align: "right" });
+    }
+
+    doc.save(`Resume_Analysis_${data.metadata?.filename?.split(".")[0] || "Report"}.pdf`);
+  };
 
   return (
     <main className="min-h-screen bg-slate-50/50">
@@ -104,11 +220,23 @@ export default function AnalysisPage() {
                 <Sparkles className="w-3 h-3 text-primary" /> {data.metadata.remaining_requests} Scans Left
               </div>
             )}
-            <div className="flex items-center gap-3">
-              <button className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-foreground/60">
-                <Share2 className="w-4 h-4" />
+            <div className="flex items-center gap-3 print:hidden">
+              <button
+                onClick={handleShare}
+                className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-foreground/60 relative group"
+                title="Share Report"
+              >
+                {copied ? <CheckCircle className="w-4 h-4 text-secondary" /> : <Share2 className="w-4 h-4" />}
+                {copied && (
+                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">
+                    Link Copied!
+                  </span>
+                )}
               </button>
-              <button className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all">
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all"
+              >
                 <Download className="w-4 h-4" /> Export Report
               </button>
             </div>
@@ -116,7 +244,18 @@ export default function AnalysisPage() {
         </div>
       </nav>
 
-      <section className="pt-24 pb-20">
+      <section className="pt-24 pb-20 print:pt-0">
+        <style jsx global>{`
+          @media print {
+            .glass { background: white !important; }
+            .print\\:hidden { display: none !important; }
+            body { background: white !important; }
+            .container { max-width: 100% !important; padding: 0 !important; }
+            .bg-slate-50\\/50 { background: white !important; }
+            .bg-white { border: none !important; shadow: none !important; }
+            .rounded-\\[2\\.5rem\\], .rounded-\\[2rem\\] { border-radius: 1rem !important; }
+          }
+        `}</style>
         <div className="container mx-auto px-6">
           {/* Header Card */}
           <motion.div
