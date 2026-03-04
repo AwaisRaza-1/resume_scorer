@@ -3,25 +3,74 @@
 import { motion } from "framer-motion";
 import { CheckCircle, Tag, ListChecks, ArrowLeft, Download, Share2, AlertCircle, Sparkles, Layout, Type, Move } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useAnalysis } from "@/context/AnalysisContext";
+import Loader from "@/components/Loader";
+import { useRouter } from "next/navigation";
 
 export default function AnalysisPage() {
   const [currentPayload, setCurrentPayload] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const { analysisInput, setAnalysisInput } = useAnalysis();
+  const apiCalled = useRef(false);
+  const router = useRouter();
 
   useEffect(() => {
-    // Try to get result from session storage
-    const stored = sessionStorage.getItem("analysisResult");
-    if (stored) {
-      try {
-        setCurrentPayload(JSON.parse(stored));
-      } catch (e) {
-        console.error("Error parsing stored analysis:", e);
+    // If we have pending input from the hero modal
+    if (analysisInput && !apiCalled.current) {
+      performAnalysis(analysisInput);
+      apiCalled.current = true;
+    } else {
+      // Otherwise try to get result from session storage (standard fallback)
+      const stored = sessionStorage.getItem("analysisResult");
+      if (stored) {
+        try {
+          setCurrentPayload(JSON.parse(stored));
+        } catch (e) {
+          console.error("Error parsing stored analysis:", e);
+        }
       }
     }
-  }, []);
+  }, [analysisInput]);
+
+  const performAnalysis = async (input) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", input.file);
+      if (input.targetRole) formData.append("target_role", input.targetRole);
+      if (input.jobDescription) formData.append("job_description", input.jobDescription);
+
+      const response = await fetch("http://localhost:8000/api/analyze", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail?.message || errorData.detail || "Failed to analyze resume.");
+      }
+
+      const data = await response.json();
+      setCurrentPayload(data);
+      sessionStorage.setItem("analysisResult", JSON.stringify(data));
+
+      // Clear input context after successful fetch to prevent re-fetching on refresh
+      setAnalysisInput(null);
+
+    } catch (err) {
+      console.error("Analysis error:", err);
+      setError(err.message || "An error occurred during analysis.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const data = currentPayload;
 
@@ -203,6 +252,64 @@ export default function AnalysisPage() {
 
     doc.save(`Resume_Analysis_${data.metadata?.filename?.split(".")[0] || "Report"}.pdf`);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/50 p-6">
+        <Loader visible={true} text="AI is analyzing your resume..." />
+        <div className="mt-12 w-full max-w-md space-y-4">
+          {["Scanning context", "Identifying key skills", "Calculating ATS compatibility", "Generating career advice"].map((text, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.5 }}
+              className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm"
+            >
+              <span className="text-sm font-medium text-slate-600">{text}</span>
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/50 p-6">
+        <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center text-red-500 mb-6">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Analysis Failed</h2>
+        <p className="text-slate-500 mb-8 text-center max-w-md">{error}</p>
+        <Link
+          href="/"
+          className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-dark transition-all shadow-lg shadow-primary/20"
+        >
+          Try Again
+        </Link>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/50 p-6">
+        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-6">
+          <Layout className="w-8 h-8" />
+        </div>
+        <h2 className="text-2xl font-bold mb-2">No Analysis Found</h2>
+        <p className="text-slate-500 mb-8">Please upload your resume to see results.</p>
+        <Link
+          href="/"
+          className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-dark transition-all shadow-lg shadow-primary/20"
+        >
+          Go to Upload
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50/50">

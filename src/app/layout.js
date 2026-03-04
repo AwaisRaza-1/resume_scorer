@@ -16,13 +16,17 @@ export const metadata = {
   description: "Get your resume scored by AI instantly. Analyze against job descriptions, find keyword gaps, and land more interviews.",
 };
 
+import { AnalysisProvider } from "@/context/AnalysisContext";
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <AnalysisProvider>
+          {children}
+        </AnalysisProvider>
       </body>
     </html>
   );

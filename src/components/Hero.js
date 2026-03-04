@@ -4,18 +4,18 @@ import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle, Upload, Star, AlertCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import Modal from "@/components/Modal";
-import Loader from "@/components/Loader";
 import { useRouter } from "next/navigation";
+import { useAnalysis } from "@/context/AnalysisContext";
 
 export default function Hero() {
     const fileInputRef = useRef(null);
     const [modalOpen, setModalOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [file, setFile] = useState(null);
     const [targetRole, setTargetRole] = useState("");
     const [jobDescription, setJobDescription] = useState("");
     const [error, setError] = useState("");
     const router = useRouter();
+    const { setAnalysisInput } = useAnalysis();
 
     const handleSelect = () => {
         fileInputRef.current?.click();
@@ -30,47 +30,20 @@ export default function Hero() {
         e.target.value = "";
     };
 
-    const handleAnalyze = async () => {
+    const handleAnalyze = () => {
         if (!file) {
             setError("Please upload a resume first.");
             return;
         }
 
-        setLoading(true);
-        setError("");
+        // Set the context with inputs and redirect
+        setAnalysisInput({
+            file,
+            targetRole,
+            jobDescription
+        });
 
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-            if (targetRole) formData.append("target_role", targetRole);
-            if (jobDescription) formData.append("job_description", jobDescription);
-
-            const response = await fetch("http://localhost:8000/api/analyze", {
-                method: "POST",
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail?.message || errorData.detail || "Failed to analyze resume.");
-            }
-
-            const data = await response.json();
-
-            // Store result for the analysis page
-            sessionStorage.setItem("analysisResult", JSON.stringify(data));
-
-            // Brief delay to show complete states
-            setTimeout(() => {
-                setLoading(false);
-                router.push("/analysis");
-            }, 1000);
-
-        } catch (err) {
-            console.error("Analysis error:", err);
-            setError(err.message || "An error occurred during analysis. Please try again.");
-            setLoading(false);
-        }
+        router.push("/analysis");
     };
 
     return (
@@ -212,86 +185,60 @@ export default function Hero() {
             />
             <Modal
                 open={modalOpen}
-                onClose={() => !loading && setModalOpen(false)}
-                title={loading ? "Analyzing Your Resume" : "Complete Your Analysis"}
+                onClose={() => setModalOpen(false)}
+                title="Complete Your Analysis"
                 size="md"
-                actions={
-                    loading
-                        ? []
-                        : [
-                            { label: "Cancel", onClick: () => setModalOpen(false) },
-                            { label: "Start Analysis", onClick: handleAnalyze, variant: "primary" },
-                        ]
-                }
+                actions={[
+                    { label: "Cancel", onClick: () => setModalOpen(false) },
+                    { label: "Start Analysis", onClick: handleAnalyze, variant: "primary" },
+                ]}
             >
-                {loading ? (
-                    <div className="py-4">
-                        <div className="flex justify-center items-center gap-4 mb-8">
-                            <Loader visible={loading} text="Analyzing with AI" variant="inline" />
+                <div className="space-y-6">
+                    {error && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" /> {error}
                         </div>
-                        <div className="space-y-3">
-                            {["Parsing Documents", "Matching Keywords", "Calculating ATS Score", "Generating Feedback"].map((item, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: i * 0.4 }}
-                                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"
-                                >
-                                    <span className="text-sm font-medium">{item}</span>
-                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                </motion.div>
-                            ))}
+                    )}
+
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary font-bold">
+                            PDF
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">{file?.name || "No file selected"}</p>
+                            <p className="text-[10px] text-foreground/40 uppercase font-bold tracking-wider">{(file?.size / 1024).toFixed(1)} KB • Ready to upload</p>
+                        </div>
+                        <button onClick={handleSelect} className="text-xs font-bold text-primary hover:underline">Change</button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-foreground/40 tracking-widest ml-1">Target Role (Recommended)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Senior Frontend Engineer"
+                                value={targetRole}
+                                onChange={(e) => setTargetRole(e.target.value)}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none transition-all text-sm font-medium"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-foreground/40 tracking-widest ml-1">Job Description (Optional)</label>
+                            <textarea
+                                rows={5}
+                                placeholder="Paste the full job description for a more accurate ATS score..."
+                                value={jobDescription}
+                                onChange={(e) => setJobDescription(e.target.value)}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none transition-all text-sm font-medium resize-none"
+                            />
                         </div>
                     </div>
-                ) : (
-                    <div className="space-y-6">
-                        {error && (
-                            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4" /> {error}
-                            </div>
-                        )}
 
-                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary font-bold">
-                                PDF
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold truncate">{file?.name || "No file selected"}</p>
-                                <p className="text-[10px] text-foreground/40 uppercase font-bold tracking-wider">{(file?.size / 1024).toFixed(1)} KB • Ready to upload</p>
-                            </div>
-                            <button onClick={handleSelect} className="text-xs font-bold text-primary hover:underline">Change</button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-black uppercase text-foreground/40 tracking-widest ml-1">Target Role (Recommended)</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. Senior Frontend Engineer"
-                                    value={targetRole}
-                                    onChange={(e) => setTargetRole(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none transition-all text-sm font-medium"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-black uppercase text-foreground/40 tracking-widest ml-1">Job Description (Optional)</label>
-                                <textarea
-                                    rows={5}
-                                    placeholder="Paste the full job description for a more accurate ATS score..."
-                                    value={jobDescription}
-                                    onChange={(e) => setJobDescription(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none transition-all text-sm font-medium resize-none"
-                                />
-                            </div>
-                        </div>
-
-                        <p className="text-[10px] text-center text-foreground/40 font-medium px-6">
-                            By clicking Start Analysis, your resume will be processed by our AI models to provide feedback and scoring.
-                        </p>
-                    </div>
-                )}
+                    <p className="text-[10px] text-center text-foreground/40 font-medium px-6">
+                        By clicking Start Analysis, your resume will be processed by our AI models to provide feedback and scoring.
+                    </p>
+                </div>
             </Modal>
         </section>
     );
