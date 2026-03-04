@@ -47,7 +47,7 @@ export default function AnalysisPage() {
       if (input.targetRole) formData.append("target_role", input.targetRole);
       if (input.jobDescription) formData.append("job_description", input.jobDescription);
 
-      const response = await fetch("http://localhost:8000/api/analyze", {
+      const response = await fetch("https://resume-scorer-elbo.onrender.com/api/analyze", {
         method: "POST",
         body: formData,
       });
