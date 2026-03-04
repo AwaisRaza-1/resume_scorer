@@ -5,19 +5,23 @@ Loads environment variables and app configuration with round-robin key rotation
 
 import os
 from datetime import timedelta
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
+from pathlib import Path
 import itertools
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
     # API Keys - Support multiple keys for round-robin
-    GROQ_API_KEY_1: str = os.getenv("GROQ_API_KEY_1", "")
-    GROQ_API_KEY_2: str = os.getenv("GROQ_API_KEY_2", "")
-    GEMINI_API_KEY_1: str = os.getenv("GEMINI_API_KEY_1", "")
-    GEMINI_API_KEY_2: str = os.getenv("GEMINI_API_KEY_2", "")
+    GROQ_API_KEY_1: str = ""
+    GROQ_API_KEY_2: str = ""
+    GEMINI_API_KEY_1: str = ""
+    GEMINI_API_KEY_2: str = ""
     
     # Rate Limiting
     RATE_LIMIT: int = 7
@@ -29,14 +33,16 @@ class Settings(BaseSettings):
     
     # AI Models
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
     
     # API Settings
     API_TIMEOUT: int = 60
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=str(BASE_DIR / ".env"),
+        case_sensitive=True,
+        extra="allow"
+    )
     
     def get_groq_keys(self) -> List[str]:
         """Get all configured Groq API keys"""

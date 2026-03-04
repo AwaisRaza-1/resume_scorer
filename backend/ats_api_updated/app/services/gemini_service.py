@@ -7,7 +7,8 @@ import os
 import time
 import tempfile
 from pathlib import Path
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from app.config import settings, key_rotator
 
 
@@ -46,7 +47,7 @@ class GeminiService:
         try:
             # Get API key from rotator (round-robin)
             api_key = key_rotator.get_gemini_key()
-            genai.configure(api_key=api_key)
+            client = genai.Client(api_key=api_key)
             
             # Save to temp file for upload
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
@@ -55,14 +56,14 @@ class GeminiService:
             
             try:
                 # Upload file
-                uploaded_file = genai.upload_file(path=tmp_path)
+                uploaded_file = client.files.upload(path=tmp_path)
                 
                 # Wait for processing
-                while uploaded_file.state.name == "PROCESSING":
+                while uploaded_file.state == "PROCESSING":
                     time.sleep(1)
-                    uploaded_file = genai.get_file(uploaded_file.name)
+                    uploaded_file = client.files.get(name=uploaded_file.name)
                 
-                if uploaded_file.state.name == "FAILED":
+                if uploaded_file.state == "FAILED":
                     raise ValueError("File processing failed")
                 
                 # Create prompt
@@ -70,10 +71,10 @@ class GeminiService:
                 prompt = self._create_prompt(context)
                 
                 # Generate analysis
-                model = genai.GenerativeModel(self.model_name)
-                response = model.generate_content(
-                    [uploaded_file, prompt],
-                    generation_config=genai.GenerationConfig(
+                response = client.models.generate_content(
+                    model=self.model_name,
+                    contents=[uploaded_file, prompt],
+                    config=types.GenerateContentConfig(
                         temperature=0.3,
                         response_mime_type="application/json"
                     )
